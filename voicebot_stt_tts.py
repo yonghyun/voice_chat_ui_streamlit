@@ -9,11 +9,15 @@ from dotenv import load_dotenv
 
 # .env 파일 경로 지정 
 load_dotenv()
+
 # audiorecorder 패키지 추가
 from audiorecorder import audiorecorder
 
 # 시간 정보를 위한 패키지 추가
 from datetime import datetime
+
+# 음원 파일 재생을 위한 패키지 추가
+import base64
 
 # Open AI API 키 설정하기
 api_key = os.environ.get('OPEN_API_KEY')
@@ -38,6 +42,36 @@ def STT(speech):
     os.remove(filename)
     
     return transcription.text
+
+def ask_gpt(prompt, model):
+    response = client.chat.completions.create(
+        model=model, 
+        messages=prompt
+    )
+    return response.choices[0].message.content
+
+def TTS(text):
+    filename = "output.mp3"
+    response = client.audio.speech.create(
+        model="tts-1",
+        voice="alloy",
+        input=text
+    )
+    response.stream_to_file(filename)
+
+    # 음원 파일 자동 재생생
+    with open(filename, "rb") as f:
+        data = f.read()
+        b64 = base64.b64encode(data).decode()
+        md = f"""
+            <audio autoplay="True">
+            <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+            </audio>
+            """
+        st.markdown(md, unsafe_allow_html=True)
+
+    # 파일 삭제
+    os.remove(filename)
 
 ##### 메인 함수 #####
 def main():
@@ -117,6 +151,34 @@ def main():
     with col2:
         # 오른쪽 영역 작성
         st.subheader("질문/답변")
+
+        if  (audio.duration_seconds > 0)  and (st.session_state["check_reset"]==False):
+            # ChatGPT에게 답변 얻기
+            response = ask_gpt(st.session_state["messages"], model)
+
+            # GPT 모델에 넣을 프롬프트를 위해 답변 내용 저장
+            st.session_state["messages"] = st.session_state["messages"] + [{"role": "system", "content": response}]
+
+            # 채팅 시각화를 위한 답변 내용 저장
+            now = datetime.now().strftime("%H:%M")
+            st.session_state["chat"] = st.session_state["chat"] + [("bot", now, response)]
+
+            # 채팅 형식으로 시각화 하기
+            for sender, time, message in st.session_state["chat"]:
+                if sender == "user":
+                    st.write(f'<div style="display:flex;align-items:center;"><div style="background-color:#007AFF;color:white;border-radius:12px;padding:8px 12px;margin-right:8px;">{message}</div><div style="font-size:0.8rem;color:gray;">{time}</div></div>', 
+                             unsafe_allow_html=True)
+                    st.write("")
+                else:
+                    st.write(f'<div style="display:flex;align-items:center;justify-content:flex-end;"><div style="background-color:lightgray;border-radius:12px;padding:8px 12px;margin-left:8px;">{message}</div><div style="font-size:0.8rem;color:gray;">{time}</div></div>', 
+                             unsafe_allow_html=True)
+                    st.write("")
+            
+            # TTS 를 활용하여 음성 파일 생성 및 재생
+            TTS(response)
+                    
+        else:
+            st.session_state["check_reset"] = False
 
 if __name__=="__main__":
     main()
