@@ -1,14 +1,19 @@
-# pip install python-dotenv
 # Streamlit 패키지 추가
 import streamlit as st
 
 # OpenAI 패키지 추가
 import openai
+
 import os
 from dotenv import load_dotenv
 
 # .env 파일 경로 지정 
 load_dotenv()
+
+# audiorecorder 패키지 추가 :  Streamlit 애플리케이션에서 오디오를 녹음할 수 있는 컴포넌트를 제공
+# pip install streamlit-audiorecorder
+
+from audiorecorder import audiorecorder
 
 # Open AI API 키 설정하기
 api_key = os.environ.get('OPEN_API_KEY')
@@ -40,7 +45,19 @@ def main():
         )
 
         st.markdown("")
-        
+    
+    system_content = "You are a thoughtful assistant. Respond to all input in 25 words and answer in korea"
+
+    # session state 초기화
+    if "chat" not in st.session_state:
+        st.session_state["chat"] = []
+
+    if "messages" not in st.session_state:
+        st.session_state["messages"] = [{"role": "system", "content": system_content}]
+
+    if "check_reset" not in st.session_state:
+        st.session_state["check_reset"] = False
+
     # 사이드바 생성
     with st.sidebar:
 
@@ -52,13 +69,21 @@ def main():
         # 리셋 버튼 생성
         if st.button(label="초기화"):
             # 리셋 코드 
-            pass
+            st.session_state["chat"] = []
+            st.session_state["messages"] = [{"role": "system", "content": system_content}]
+            st.session_state["check_reset"] = True
 
     # 기능 구현 공간
     col1, col2 = st.columns(2)
     with col1:
         # 왼쪽 영역 작성
         st.subheader("질문하기")
+
+        # 음성 녹음 아이콘 추가
+        audio = audiorecorder()
+        if (audio.duration_seconds > 0) and (st.session_state["check_reset"]==False):
+            # 음성 재생 
+            st.audio(audio.export().read())
 
     with col2:
         # 오른쪽 영역 작성
